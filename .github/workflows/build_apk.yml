@@ -22,13 +22,14 @@ jobs:
           channel: 'stable'
       - name: Create Android platform files
         run: flutter create . --platforms=android --project-name=tvallstream_app
-      - name: Enable Internet and cleartext HTTP in AndroidManifest
+      - name: Configure AndroidManifest for TV Box compatibility
         run: |
           sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
-      - name: Get packages and build APK
+          sed -i 's/<\/application>/    <meta-data android:name="io.flutter.embedding.android.EnableImpeller" android:value="false" \/>\n    <\/application>/' android/app/src/main/AndroidManifest.xml
+      - name: Get packages and build universal APK
         run: |
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release --target-platform android-arm,android-arm64
       - name: Publish APK Release
         uses: softprops/action-gh-release@v2
         with:
