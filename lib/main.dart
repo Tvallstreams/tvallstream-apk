@@ -3,15 +3,14 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 
 const String kSupabaseUrl = 'https://' 'ihzzgtkavekrvgsxshhy.supabase.co';
 const String kSupabaseAnonKey = 'sb_publishable_Q5jTnbrCs-dRi4PzrCHohA_wHYqSsYz';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  MediaKit.ensureInitialized();
   runApp(const TvAllStreamApp());
 }
 
@@ -176,14 +175,16 @@ class PlayerPage extends StatefulWidget {
 }
 
 class _PlayerPageState extends State<PlayerPage> {
-  late final Player player;
-  late final VideoController controller;
+  VideoPlayerController? _videoController;
+  ChewieController? _chewieController;
 
   String tipoAtual = 'get_live_streams';
   List<dynamic> itens = [];
   bool carregandoLista = true;
+  bool carregandoVideo = false;
   String? selectedId;
   String tituloAtual = '';
+  String? erroVideo;
 
   String get dnsUrl => (widget.account['dns_url'] ?? '').toString().replaceAll(RegExp(r'/$'), '');
   String get username => (widget.account['username'] ?? '').toString();
@@ -193,14 +194,13 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void initState() {
     super.initState();
-    player = Player();
-    controller = VideoController(player);
     _carregarLista('get_live_streams');
   }
 
   @override
   void dispose() {
-    player.dispose();
+    _chewieController?.dispose();
+    _videoController?.dispose();
     super.dispose();
   }
 
@@ -227,7 +227,7 @@ class _PlayerPageState extends State<PlayerPage> {
     }
   }
 
-  void _tocarItem(Map<String, dynamic> item) {
+  Future<void> _tocarItem(Map<String, dynamic> item) async {
     final id = (item['stream_id'] ?? item['series_id'] ?? '').toString();
     final nome = (item['name'] ?? '').toString();
     final ext = (item['container_extension'] ?? 'mp4').toString();
@@ -244,9 +244,47 @@ class _PlayerPageState extends State<PlayerPage> {
     setState(() {
       selectedId = id;
       tituloAtual = nome;
+      carregandoVideo = true;
+      erroVideo = null;
     });
 
-    player.open(Media(streamUrl));
+    final oldChewie = _chewieController;
+    final oldVideo = _videoController;
+    _chewieController = null;
+    _videoController = null;
+    oldChewie?.dispose();
+    await oldVideo?.dispose();
+
+    try {
+      final vc = VideoPlayerController.networkUrl(
+        Uri.parse(streamUrl),
+        httpHeaders: const {'User-Agent': 'IPTV Smarters Player'},
+      );
+      await vc.initialize();
+      final cc = ChewieController(
+        videoPlayerController: vc,
+        autoPlay: true,
+        looping: false,
+        isLive: tipoAtual == 'get_live_streams',
+      );
+      if (!mounted) {
+        cc.dispose();
+        await vc.dispose();
+        return;
+      }
+      setState(() {
+        _videoController = vc;
+        _chewieController = cc;
+        carregandoVideo = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          carregandoVideo = false;
+          erroVideo = 'Erro ao abrir stream: $e';
+        });
+      }
+    }
   }
 
   @override
@@ -276,26 +314,4 @@ class _PlayerPageState extends State<PlayerPage> {
                             final name = (item['name'] ?? '').toString();
                             final isSelected = id == selectedId;
 
-                            return Container(
-                              color: isSelected ? const Color(0xFF5A48F5) : Colors.transparent,
-                              child: ListTile(
-                                dense: true,
-                                title: Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                                ),
-                                trailing: const Icon(Icons.chevron_right, color: Colors.white70),
-                                onTap: () => _tocarItem(item),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Container(
-              color: Colors.black,
+
