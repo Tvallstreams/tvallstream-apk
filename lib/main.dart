@@ -274,6 +274,26 @@ class _PlayerPageState extends State<PlayerPage> {
     }
   }
 
+  Widget _buildTabButton(String label, String action) {
+    final active = tipoAtual == action;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      child: SizedBox(
+        width: double.infinity,
+        height: 40,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: active ? const Color(0xFF5A48F5) : const Color(0xFF282266),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () => _carregarLista(action),
+          child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final vc = _videoController;
@@ -296,17 +316,4 @@ class _PlayerPageState extends State<PlayerPage> {
                       ? const Center(child: CircularProgressIndicator())
                       : ListView.builder(
                           itemCount: itens.length,
-                          itemBuilder: (context, index) {
-                            final item = itens[index] as Map<String, dynamic>;
-                            final id = (item['stream_id'] ?? item['series_id'] ?? '').toString();
-                            final name = (item['name'] ?? '').toString();
-                            final isSelected = id == selectedId;
-
-                            return Container(
-                              color: isSelected ? const Color(0xFF5A48F5) : Colors.transparent,
-                              child: ListTile(
-                                dense: true,
-                                title: Text(
-                                  name,
-                                  maxLines: 1,
 
