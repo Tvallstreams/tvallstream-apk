@@ -18,13 +18,13 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: '3.29.2'
           channel: 'stable'
       - name: Create Android platform files
         run: flutter create . --platforms=android --project-name=tvallstream_app
-      - name: Enable cleartext HTTP in AndroidManifest
+      - name: Enable Internet and cleartext HTTP in AndroidManifest
         run: |
-          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
+          sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
       - name: Get packages and build APK
         run: |
           flutter pub get
