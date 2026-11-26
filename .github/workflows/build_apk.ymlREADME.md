@@ -1,0 +1,33 @@
+name: Build APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+      - name: Create Android platform files
+        run: flutter create . --platforms=android --project-name=tvallstream_app
+      - name: Enable cleartext HTTP in AndroidManifest
+        run: |
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
+      - name: Get packages and build APK
+        run: |
+          flutter pub get
+          flutter build apk --release
+      - name: Publish APK Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: TVAllstream APK v1.0.0
+          files: build/app/outputs/flutter-apk/app-release.apk
