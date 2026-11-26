@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 
 const String kSupabaseUrl = 'https://' 'ihzzgtkavekrvgsxshhy.supabase.co';
 const String kSupabaseAnonKey = 'sb_publishable_Q5jTnbrCs-dRi4PzrCHohA_wHYqSsYz';
@@ -176,7 +175,6 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> {
   VideoPlayerController? _videoController;
-  ChewieController? _chewieController;
 
   String tipoAtual = 'get_live_streams';
   List<dynamic> itens = [];
@@ -199,7 +197,6 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
-    _chewieController?.dispose();
     _videoController?.dispose();
     super.dispose();
   }
@@ -248,11 +245,8 @@ class _PlayerPageState extends State<PlayerPage> {
       erroVideo = null;
     });
 
-    final oldChewie = _chewieController;
     final oldVideo = _videoController;
-    _chewieController = null;
     _videoController = null;
-    oldChewie?.dispose();
     await oldVideo?.dispose();
 
     try {
@@ -261,20 +255,13 @@ class _PlayerPageState extends State<PlayerPage> {
         httpHeaders: const {'User-Agent': 'IPTV Smarters Player'},
       );
       await vc.initialize();
-      final cc = ChewieController(
-        videoPlayerController: vc,
-        autoPlay: true,
-        looping: false,
-        isLive: tipoAtual == 'get_live_streams',
-      );
+      await vc.play();
       if (!mounted) {
-        cc.dispose();
         await vc.dispose();
         return;
       }
       setState(() {
         _videoController = vc;
-        _chewieController = cc;
         carregandoVideo = false;
       });
     } catch (e) {
@@ -289,6 +276,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final vc = _videoController;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF0E101A),
@@ -314,4 +302,11 @@ class _PlayerPageState extends State<PlayerPage> {
                             final name = (item['name'] ?? '').toString();
                             final isSelected = id == selectedId;
 
+                            return Container(
+                              color: isSelected ? const Color(0xFF5A48F5) : Colors.transparent,
+                              child: ListTile(
+                                dense: true,
+                                title: Text(
+                                  name,
+                                  maxLines: 1,
 
