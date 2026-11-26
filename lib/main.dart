@@ -21,7 +21,8 @@ class TvAllStreamApp extends StatelessWidget {
     return MaterialApp(
       title: 'TVAllstream',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
+      theme: ThemeData(
+        brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0E101A),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF5A48F5),
@@ -41,7 +42,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  String macAddress = '';
+  String macAddress = 'Gerando MAC...';
   bool loading = false;
   String? errorMsg;
 
@@ -51,20 +52,28 @@ class _HomePageState extends State<HomePage> {
     _loadOrGenerateMac();
   }
 
+  String _randomMac() {
+    final rnd = Random();
+    const hex = '0123456789ABCDEF';
+    return List.generate(6, (_) => '${hex[rnd.nextInt(16)]}${hex[rnd.nextInt(16)]}').join(':');
+  }
+
   Future<void> _loadOrGenerateMac() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? saved = prefs.getString('device_mac');
-    if (saved == null || saved.isEmpty) {
-      final rnd = Random();
-      const hex = '0123456789ABCDEF';
-      saved = List.generate(6, (_) => '${hex[rnd.nextInt(16)]}${hex[rnd.nextInt(16)]}').join(':');
-      await prefs.setString('device_mac', saved);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? saved = prefs.getString('device_mac');
+      if (saved == null || saved.isEmpty) {
+        saved = _randomMac();
+        await prefs.setString('device_mac', saved);
+      }
+      if (mounted) setState(() => macAddress = saved!);
+    } catch (_) {
+      if (mounted) setState(() => macAddress = _randomMac());
     }
-    setState(() => macAddress = saved!);
   }
 
   Future<void> _connect() async {
-    if (macAddress.isEmpty) return;
+    if (macAddress.isEmpty || macAddress.startsWith('Gerando')) return;
     setState(() {
       loading = true;
       errorMsg = null;
@@ -104,60 +113,70 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0E101A),
       body: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 460),
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: const Color(0xFF171A29),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.live_tv_rounded, size: 54, color: Color(0xFF5A48F5)),
-              const SizedBox(height: 12),
-              const Text(
-                'TVAllstream Player',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 24),
-              const Text('SEU ENDEREÇO MAC:', style: TextStyle(color: Colors.white54, fontSize: 12)),
-              const SizedBox(height: 6),
-              SelectableText(
-                macAddress,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 2),
-              ),
-              const SizedBox(height: 24),
-              if (errorMsg != null) ...[
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 460),
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: const Color(0xFF171A29),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.live_tv_rounded, size: 54, color: Color(0xFF5A48F5)),
+                const SizedBox(height: 12),
+                const Text(
+                  'TVAllstream Player',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                const SizedBox(height: 24),
+                const Text('SEU ENDEREÇO MAC:', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 6),
                 Text(
-                  errorMsg!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-                ),
-                const SizedBox(height: 14),
-              ],
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF5A48F5),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  macAddress,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                    color: Colors.white,
                   ),
-                  onPressed: loading ? null : _connect,
-                  child: loading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text('CONECTAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+                if (errorMsg != null) ...[
+                  Text(
+                    errorMsg!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    autofocus: true,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF5A48F5),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: loading ? null : _connect,
+                    child: loading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('CONECTAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -298,104 +317,3 @@ class _PlayerPageState extends State<PlayerPage> {
   Widget build(BuildContext context) {
     final vc = _videoController;
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0E101A),
-        title: Text(accountTitle),
-      ),
-      body: Row(
-        children: [
-          SizedBox(
-            width: 310,
-            child: Column(
-              children: [
-                _buildTabButton('Aovivo', 'get_live_streams'),
-                _buildTabButton('Filmes', 'get_vod_streams'),
-                _buildTabButton('Séries', 'get_series'),
-                Expanded(
-                  child: carregandoLista
-                      ? const Center(child: CircularProgressIndicator())
-                      : ListView.builder(
-                          itemCount: itens.length,
-itemBuilder: (context, index) {
-                            final item = itens[index] as Map<String, dynamic>;
-                            final id = (item['stream_id'] ?? item['series_id'] ?? '').toString();
-                            final name = (item['name'] ?? '').toString();
-                            final isSelected = id == selectedId;
-
-                            return Container(
-                              color: isSelected ? const Color(0xFF5A48F5) : Colors.transparent,
-                              child: ListTile(
-                                dense: true,
-                                title: Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                                ),
-                                trailing: const Icon(Icons.chevron_right, color: Colors.white70),
-                                onTap: () => _tocarItem(item),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Container(
-              color: Colors.black,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: carregandoVideo
-                          ? const CircularProgressIndicator()
-                          : erroVideo != null
-                              ? Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Text(erroVideo!, style: const TextStyle(color: Colors.redAccent)),
-                                )
-                              : (vc != null && vc.value.isInitialized)
-                                  ? AspectRatio(
-                                      aspectRatio: vc.value.aspectRatio > 0 ? vc.value.aspectRatio : 16 / 9,
-                                      child: VideoPlayer(vc),
-                                    )
-                                  : const Text('Selecione um canal ou filme ao lado'),
-                    ),
-                  ),
-                  if (vc != null && vc.value.isInitialized)
-                    Container(
-                      color: const Color(0xFF171A29),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(vc.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
-                            onPressed: () {
-                              setState(() {
-                                vc.value.isPlaying ? vc.pause() : vc.play();
-                              });
-                            },
-                          ),
-                          Expanded(
-                            child: Text(
-                              tituloAtual,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
