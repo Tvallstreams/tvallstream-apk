@@ -34,88 +34,196 @@ jobs:
             flutter create --platforms=android,web .
           fi
 
-      - name: Configure Android TV Banner, App Icon & Hardware MAC
+      - name: Write 3-Column Groups PlayerPage (Live, Movies & Series)
         run: |
-          pip install -q Pillow
-          mkdir -p android/app/src/main/res/drawable-xhdpi
-
           python3 -c '
-          import glob, os
-          from PIL import Image
+          code = """import \x27dart:async\x27;
+          import \x27dart:convert\x27;
+          import \x27package:flutter/material.dart\x27;
+          import \x27package:http/http.dart\x27 as http;
+          import \x27package:video_player/video_player.dart\x27;
+          import \x27main.dart\x27;
 
-          if os.path.exists("assets/tv_banner.png"):
-              banner = Image.open("assets/tv_banner.png").convert("RGBA").resize((320, 180))
-              banner.save("android/app/src/main/res/drawable-xhdpi/tv_banner.png", format="PNG")
+          class PlayerPage extends StatefulWidget {
+            final Map<String, dynamic> account;
+            final String initialAction;
+            const PlayerPage({super.key, required this.account, this.initialAction = \x27get_live_streams\x27});
 
-          if os.path.exists("assets/logo.jpg"):
-              logo = Image.open("assets/logo.jpg").convert("RGBA")
-              for d in glob.glob("android/app/src/main/res/mipmap-*"):
-                  if os.path.isdir(d):
-                      logo.resize((192, 192)).save(os.path.join(d, "ic_launcher.png"), format="PNG")
+            @override
+            State<PlayerPage> createState() => _PlayerPageState();
+          }
 
-          manifest_path = "android/app/src/main/AndroidManifest.xml"
-          with open(manifest_path, "r") as f:
-              xml = f.read()
-          if "LEANBACK_LAUNCHER" not in xml:
-              xml = xml.replace("<application", "<uses-feature android:name=\"android.software.leanback\" android:required=\"false\" />\n    <uses-feature android:name=\"android.hardware.touchscreen\" android:required=\"false\" />\n    <application android:banner=\"@drawable/tv_banner\"", 1)
-              xml = xml.replace("<category android:name=\"android.intent.category.LAUNCHER\"/>", "<category android:name=\"android.intent.category.LAUNCHER\"/>\n                <category android:name=\"android.intent.category.LEANBACK_LAUNCHER\"/>", 1)
-              with open(manifest_path, "w") as f:
-                  f.write(xml)
+          class _PlayerPageState extends State<PlayerPage> {
+            VideoPlayerController? _videoController;
+            final TextEditingController _searchController = TextEditingController();
+            Timer? _osdTimer;
 
-          kt_files = glob.glob("android/app/src/main/kotlin/**/MainActivity.kt", recursive=True)
-          if kt_files:
-              with open(kt_files[0], "r") as f:
-                  pkg_line = f.readline().strip()
-              kt_code = "\n".join([
-                  pkg_line,
-                  "",
-                  "import android.provider.Settings",
-                  "import io.flutter.embedding.android.FlutterActivity",
-                  "import io.flutter.embedding.engine.FlutterEngine",
-                  "import io.flutter.plugin.common.MethodChannel",
-                  "",
-                  "class MainActivity: FlutterActivity() {",
-                  "    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {",
-                  "        super.configureFlutterEngine(flutterEngine)",
-                  "        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, \"com.tvallstream/device\").setMethodCallHandler { call, result ->",
-                  "            if (call.method == \"getAndroidId\") {",
-                  "                val id = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: \"\"",
-                  "                result.success(id)",
-                  "            } else {",
-                  "                result.notImplemented()",
-                  "            }",
-                  "        }",
-                  "    }",
-                  "}",
-                  ""
-              ])
-              with open(kt_files[0], "w") as f:
-                  f.write(kt_code)
-          '
+            late String tipoAtual;
+            List<dynamic> categorias = [];
+            String categoriaSelecionada = \x27ALL\x27;
+            List<dynamic> itens = [];
+            String filtroBusca = \x27\x27;
 
-      - name: Install dependencies
-        run: flutter pub get
+            bool carregandoLista = true;
+            bool carregandoVideo = false;
+            bool isFullScreen = false;
+            bool showOsd = true;
 
-      - name: Build Android APK
-        run: flutter build apk --release
+            String? selectedId;
+            String tituloAtual = \x27\x27;
+            String? erroVideo;
+            String? erroLista;
 
-      - name: Publish APK to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.0
-          name: TVAllstream APK v1.0.0
-          files: build/app/outputs/flutter-apk/app-release.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            String get dnsUrl => (widget.account[\x27dns_url\x27] ?? \x27\x27).toString().replaceAll(RegExp(r\x27/$\x27), \x27\x27);
+            String get username => (widget.account[\x27username\x27] ?? \x27\x27).toString();
+            String get password => (widget.account[\x27password\x27] ?? \x27\x27).toString();
 
-      - name: Build Web Preview
-        run: |
-          flutter config --enable-web
-          flutter create --platforms=web .
-          flutter build web --release --base-href "/tvallstream-apk/"
+            Map<String, String> get _headers => const {\x27User-Agent\x27: \x27IPTV Smarters Player\x27, \x27Accept\x27: \x27application/json\x27};
 
-      - name: Deploy Web Preview to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build/web
+            List<dynamic> get itensFiltrados {
+              return itens.where((raw) {
+                final item = raw as Map<String, dynamic>;
+                if (categoriaSelecionada != \x27ALL\x27 && (item[\x27category_id\x27] ?? \x27\x27).toString() != categoriaSelecionada) return false;
+                if (filtroBusca.isNotEmpty && !(item[\x27name\x27] ?? \x27\x27).toString().toLowerCase().contains(filtroBusca.toLowerCase())) return false;
+                return true;
+              }).toList();
+            }
+
+            int _contarPorCategoria(String catId) {
+              if (catId == \x27ALL\x27) return itens.length;
+              return itens.where((raw) => ((raw as Map<String, dynamic>)[\x27category_id\x27] ?? \x27\x27).toString() == catId).length;
+            }
+
+            @override
+            void initState() {
+              super.initState();
+              tipoAtual = widget.initialAction;
+              _carregarSecao(tipoAtual);
+            }
+
+            @override
+            void dispose() {
+              _osdTimer?.cancel();
+              _searchController.dispose();
+              _videoController?.dispose();
+              super.dispose();
+            }
+
+            void _triggerOsd() {
+              setState(() => showOsd = true);
+              _osdTimer?.cancel();
+              _osdTimer = Timer(const Duration(seconds: 4), () {
+                if (mounted && isFullScreen) setState(() => showOsd = false);
+              });
+            }
+
+            void _entrarTelaCheia() {
+              if (_videoController == null || !_videoController!.value.isInitialized) return;
+              setState(() => isFullScreen = true);
+              _triggerOsd();
+            }
+
+            void _sairTelaCheia() {
+              _osdTimer?.cancel();
+              setState(() {
+                isFullScreen = false;
+                showOsd = true;
+              });
+            }
+
+            String _categoryActionFor(String streamAction) {
+              if (streamAction == \x27get_vod_streams\x27) return \x27get_vod_categories\x27;
+              if (streamAction == \x27get_series\x27) return \x27get_series_categories\x27;
+              return \x27get_live_categories\x27;
+            }
+
+            Future<void> _carregarSecao(String action) async {
+              setState(() {
+                tipoAtual = action;
+                carregandoLista = true;
+                erroLista = null;
+                categorias = [];
+                categoriaSelecionada = \x27ALL\x27;
+                itens = [];
+                filtroBusca = \x27\x27;
+                _searchController.clear();
+              });
+
+              try {
+                final catAction = _categoryActionFor(action);
+                final catUrl = Uri.parse(\x27$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=$catAction\x27);
+                final streamUrl = Uri.parse(\x27$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=$action\x27);
+
+                final results = await Future.wait([http.get(catUrl, headers: _headers), http.get(streamUrl, headers: _headers)]);
+                if (results.first.statusCode == 200) {
+                  final decodedCats = jsonDecode(results.first.body);
+                  if (decodedCats is List) categorias = decodedCats;
+                }
+                if (results.last.statusCode == 200) {
+                  final decoded = jsonDecode(results.last.body);
+                  if (decoded is List) {
+                    setState(() => itens = decoded);
+                  } else {
+                    setState(() => erroLista = \x27Resposta inesperada do servidor\x27);
+                  }
+                } else {
+                  setState(() => erroLista = \x27Erro HTTP ${results.last.statusCode} ao buscar lista\x27);
+                }
+              } catch (e) {
+                setState(() => erroLista = \x27Erro de rede: $e\x27);
+              } finally {
+                if (mounted) setState(() => carregandoLista = false);
+              }
+            }
+
+            Future<void> _abrirSerie(Map<String, dynamic> serie) async {
+              final seriesId = (serie[\x27series_id\x27] ?? \x27\x27).toString();
+              final nomeSerie = (serie[\x27name\x27] ?? \x27Série\x27).toString();
+              showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+
+              try {
+                final url = Uri.parse(\x27$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=get_series_info&series_id=$seriesId\x27);
+                final res = await http.get(url, headers: _headers);
+                if (!mounted) return;
+                Navigator.pop(context);
+                if (res.statusCode != 200) return;
+
+                final data = jsonDecode(res.body);
+                final episodesMap = (data is Map && data[\x27episodes\x27] is Map) ? data[\x27episodes\x27] as Map<String, dynamic> : <String, dynamic>{};
+                if (episodesMap.isEmpty) return;
+
+                final seasons = episodesMap.keys.toList();
+                String selectedSeason = seasons.first;
+                if (!mounted) return;
+                await showDialog(
+                  context: context,
+                  builder: (ctx) => StatefulBuilder(
+                    builder: (ctx, setModalState) {
+                      final epList = (episodesMap[selectedSeason] as List?) ?? [];
+                      return AlertDialog(
+                        backgroundColor: const Color(0xFF151828),
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(nomeSerie, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white))),
+                            const SizedBox(width: 12),
+                            DropdownButton<String>(
+                              value: selectedSeason,
+                              dropdownColor: const Color(0xFF23273D),
+                              items: seasons.map((s) => DropdownMenuItem(value: s, child: Text(\x27Temporada $s\x27))).toList(),
+                              onChanged: (val) {
+                                if (val != null) setModalState(() => selectedSeason = val);
+                              },
+                            ),
+                          ],
+                        ),
+                        content: SizedBox(
+                          width: 520,
+                          height: 320,
+                          child: ListView.builder(
+                            itemCount: epList.length,
+                            itemBuilder: (_, idx) {
+                              final ep = epList[idx] as Map<String, dynamic>;
+                              final epNum = (ep[\x27episode_num\x27] ?? (idx + 1)).toString();
+                              final epTitle = (ep[\x27title\x27] ?? \x27Episódio $epNum\x27).toString();
+                              final epId = (ep[\x27id\x27] ?? \x27\x27).toString();
+                              final ext = (ep[\x27container_extension\x27] ?? \x27mp4\x27).toString();
