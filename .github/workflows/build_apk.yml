@@ -34,29 +34,54 @@ jobs:
             flutter create --platforms=android,web .
           fi
 
-      - name: Fix truncated lines in main.dart and player_page.dart
+      - name: Configure Android TV Banner, App Icon & Hardware MAC
         run: |
-          python3 -c '
-          with open("lib/main.dart", "r") as f:
-              lines = f.readlines()
-          fixed = []
-          for i, line in enumerate(lines):
-              if "const SizedBox(height: 4)," in line and i > 0 and not lines[i-1].strip().endswith(","):
-                  fixed[-1] = "                              const Text(\x27ENDEREÇO MAC DO DISPOSITIVO\x27, style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),\n"
-              fixed.append(line)
-          with open("lib/main.dart", "w") as f:
-              f.writelines(fixed)
+          mkdir -p android/app/src/main/res/drawable-xhdpi
+          if [ -f "assets/tv_banner.png" ]; then
+            cp assets/tv_banner.png android/app/src/main/res/drawable-xhdpi/tv_banner.png
+          fi
+          for dir in android/app/src/main/res/mipmap-*; do
+            if [ -d "$dir" ] && [ -f "assets/logo.jpg" ]; then
+              cp assets/logo.jpg "$dir/ic_launcher.jpg"
+              rm -f "$dir/ic_launcher.png"
+            fi
+          done
 
-          with open("lib/player_page.dart", "r") as f:
-              plines = f.readlines()
-          pfixed = []
-          for i, line in enumerate(plines):
-              if "tituloAtual = nome;" in line and i > 0 and not plines[i-1].strip().endswith(";"):
-                  pfixed[-1] = "      selectedId = id;\n"
-              pfixed.append(line)
-          with open("lib/player_page.dart", "w") as f:
-              f.writelines(pfixed)
+          python3 -c '
+          manifest_path = "android/app/src/main/AndroidManifest.xml"
+          with open(manifest_path, "r") as f:
+              xml = f.read()
+          if "LEANBACK_LAUNCHER" not in xml:
+              xml = xml.replace("<application", "<uses-feature android:name=\"android.software.leanback\" android:required=\"false\" />\n    <uses-feature android:name=\"android.hardware.touchscreen\" android:required=\"false\" />\n    <application android:banner=\"@drawable/tv_banner\"", 1)
+              xml = xml.replace("<category android:name=\"android.intent.category.LAUNCHER\"/>", "<category android:name=\"android.intent.category.LAUNCHER\"/>\n                <category android:name=\"android.intent.category.LEANBACK_LAUNCHER\"/>", 1)
+              with open(manifest_path, "w") as f:
+                  f.write(xml)
           '
+
+          MAIN_KT=$(find android/app/src/main/kotlin -name "MainActivity.kt" | head -n 1)
+          PKG_LINE=$(head -n 1 "$MAIN_KT")
+          cat << EOF > "$MAIN_KT"
+          $PKG_LINE
+
+          import android.provider.Settings
+          import io.flutter.embedding.android.FlutterActivity
+          import io.flutter.embedding.engine.FlutterEngine
+          import io.flutter.plugin.common.MethodChannel
+
+          class MainActivity: FlutterActivity() {
+              override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+                  super.configureFlutterEngine(flutterEngine)
+                  MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.tvallstream/device").setMethodCallHandler { call, result ->
+                      if (call.method == "getAndroidId") {
+                          val id = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: ""
+                          result.success(id)
+                      } else {
+                          result.notImplemented()
+                      }
+                  }
+              }
+          }
+          EOF
 
       - name: Install dependencies
         run: flutter pub get
