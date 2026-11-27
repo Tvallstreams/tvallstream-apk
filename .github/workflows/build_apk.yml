@@ -36,19 +36,22 @@ jobs:
 
       - name: Configure Android TV Banner, App Icon & Hardware MAC
         run: |
+          pip install -q Pillow
           mkdir -p android/app/src/main/res/drawable-xhdpi
-          if [ -f "assets/tv_banner.png" ]; then
-            cp assets/tv_banner.png android/app/src/main/res/drawable-xhdpi/tv_banner.png
-          fi
-          for dir in android/app/src/main/res/mipmap-*; do
-            if [ -d "$dir" ] && [ -f "assets/logo.jpg" ]; then
-              cp assets/logo.jpg "$dir/ic_launcher.jpg"
-              rm -f "$dir/ic_launcher.png"
-            fi
-          done
 
           python3 -c '
-          import glob
+          import glob, os
+          from PIL import Image
+
+          if os.path.exists("assets/tv_banner.png"):
+              banner = Image.open("assets/tv_banner.png").convert("RGBA").resize((320, 180))
+              banner.save("android/app/src/main/res/drawable-xhdpi/tv_banner.png", format="PNG")
+
+          if os.path.exists("assets/logo.jpg"):
+              logo = Image.open("assets/logo.jpg").convert("RGBA")
+              for d in glob.glob("android/app/src/main/res/mipmap-*"):
+                  if os.path.isdir(d):
+                      logo.resize((192, 192)).save(os.path.join(d, "ic_launcher.png"), format="PNG")
 
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           with open(manifest_path, "r") as f:
