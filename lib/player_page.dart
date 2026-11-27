@@ -518,3 +518,33 @@ class _PlayerPageState extends State<PlayerPage> {
                               ? const Center(child: CircularProgressIndicator())
                               : erroLista != null
                                   ? Padding(padding: const EdgeInsets.all(12), child: Text(erroLista!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)))
+                                  : ListView.builder(
+                                      itemCount: lista.length,
+                                      itemBuilder: (context, index) {
+                                        final item = lista[index] as Map<String, dynamic>;
+                                        final id = (item['stream_id'] ?? item['series_id'] ?? '').toString();
+                                        final isSelected = id == selectedId;
+                                        return Container(
+                                          margin: const EdgeInsets.symmetric(vertical: 1),
+                                          decoration: BoxDecoration(color: isSelected ? const Color(0xFF6352FF) : Colors.transparent, borderRadius: BorderRadius.circular(6)),
+                                          child: ListTile(
+                                            dense: true,
+                                            visualDensity: const VisualDensity(vertical: -2),
+                                            title: Text((item['name'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                                            trailing: Icon(isSelected ? Icons.fullscreen : Icons.chevron_right, color: Colors.white70, size: 18),
+                                            onTap: () => _tocarItem(item),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: _buildVideoArea()),
+                ],
+              ),
+      ),
+    );
+  }
+}
