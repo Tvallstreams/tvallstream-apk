@@ -265,3 +265,95 @@ class _HomePageState extends State<HomePage> {
                             children: [
                               const Text('ENDEREÇO MAC DO DISPOSITIVO', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.4)),
                               const SizedBox(height: 4),
+                              SelectableText(macAddress, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 3, color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        if (errorMsg != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                            ),
+                            child: Text(errorMsg!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: SizedBox(
+                                height: 50,
+                                child: ElevatedButton(
+                                  autofocus: true,
+                                  onFocusChange: (f) => setState(() => connectFocused = f),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF6352FF),
+                                    foregroundColor: Colors.white,
+                                    side: BorderSide(color: connectFocused ? Colors.white : Colors.transparent, width: 2.5),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  onPressed: loading ? null : _connectWithMac,
+                                  child: loading
+                                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                                      : const Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.play_circle_fill_rounded, size: 22),
+                                            SizedBox(width: 8),
+                                            Text('CONECTAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                          ],
+                                        ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 2,
+                              child: SizedBox(
+                                height: 50,
+                                child: OutlinedButton(
+                                  onFocusChange: (f) => setState(() => manualFocused = f),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    backgroundColor: const Color(0xFF1A1E33),
+                                    side: BorderSide(color: manualFocused ? Colors.white : Colors.white24, width: manualFocused ? 2.5 : 1),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  onPressed: loading ? null : _openManualLoginDialog,
+                                  child: const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.playlist_add_rounded, size: 20),
+                                      SizedBox(width: 6),
+                                      Text('PLAYLIST', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'TvAllStream TV é exclusivamente um reprodutor de mídia e não fornece nem inclui canais, filmes ou assinaturas.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
