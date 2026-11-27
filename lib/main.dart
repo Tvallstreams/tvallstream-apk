@@ -245,7 +245,8 @@ class _PlayerPageState extends State<PlayerPage> {
         if (decoded is List) {
           setState(() => itens = decoded);
         } else {
-          setState(() => erroLista = 'Resposta inesperada: ${res.body.substring(0, res.body.length > 80 ? 80 : res.body.length)}');
+          final preview = res.body.length > 80 ? res.body.substring(0, 80) : res.body;
+          setState(() => erroLista = 'Resposta inesperada: $preview');
         }
       } else {
         setState(() => erroLista = 'Erro HTTP ${res.statusCode} ao buscar lista');
