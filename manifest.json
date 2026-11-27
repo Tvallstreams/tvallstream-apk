@@ -1,6 +1,6 @@
 {
-    "name": "tvallstream_app",
-    "short_name": "tvallstream_app",
+    "name": "tvallstream_apk",
+    "short_name": "tvallstream_apk",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
