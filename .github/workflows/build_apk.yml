@@ -34,6 +34,30 @@ jobs:
             flutter create --platforms=android,web .
           fi
 
+      - name: Fix truncated lines in main.dart and player_page.dart
+        run: |
+          python3 -c '
+          with open("lib/main.dart", "r") as f:
+              lines = f.readlines()
+          fixed = []
+          for i, line in enumerate(lines):
+              if "const SizedBox(height: 4)," in line and i > 0 and not lines[i-1].strip().endswith(","):
+                  fixed[-1] = "                              const Text(\x27ENDEREÇO MAC DO DISPOSITIVO\x27, style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),\n"
+              fixed.append(line)
+          with open("lib/main.dart", "w") as f:
+              f.writelines(fixed)
+
+          with open("lib/player_page.dart", "r") as f:
+              plines = f.readlines()
+          pfixed = []
+          for i, line in enumerate(plines):
+              if "tituloAtual = nome;" in line and i > 0 and not plines[i-1].strip().endswith(";"):
+                  pfixed[-1] = "      selectedId = id;\n"
+              pfixed.append(line)
+          with open("lib/player_page.dart", "w") as f:
+              f.writelines(pfixed)
+          '
+
       - name: Install dependencies
         run: flutter pub get
 
