@@ -48,6 +48,8 @@ jobs:
           done
 
           python3 -c '
+          import glob
+
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           with open(manifest_path, "r") as f:
               xml = f.read()
@@ -56,32 +58,37 @@ jobs:
               xml = xml.replace("<category android:name=\"android.intent.category.LAUNCHER\"/>", "<category android:name=\"android.intent.category.LAUNCHER\"/>\n                <category android:name=\"android.intent.category.LEANBACK_LAUNCHER\"/>", 1)
               with open(manifest_path, "w") as f:
                   f.write(xml)
+
+          kt_files = glob.glob("android/app/src/main/kotlin/**/MainActivity.kt", recursive=True)
+          if kt_files:
+              with open(kt_files[0], "r") as f:
+                  pkg_line = f.readline().strip()
+              kt_code = "\n".join([
+                  pkg_line,
+                  "",
+                  "import android.provider.Settings",
+                  "import io.flutter.embedding.android.FlutterActivity",
+                  "import io.flutter.embedding.engine.FlutterEngine",
+                  "import io.flutter.plugin.common.MethodChannel",
+                  "",
+                  "class MainActivity: FlutterActivity() {",
+                  "    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {",
+                  "        super.configureFlutterEngine(flutterEngine)",
+                  "        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, \"com.tvallstream/device\").setMethodCallHandler { call, result ->",
+                  "            if (call.method == \"getAndroidId\") {",
+                  "                val id = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: \"\"",
+                  "                result.success(id)",
+                  "            } else {",
+                  "                result.notImplemented()",
+                  "            }",
+                  "        }",
+                  "    }",
+                  "}",
+                  ""
+              ])
+              with open(kt_files[0], "w") as f:
+                  f.write(kt_code)
           '
-
-          MAIN_KT=$(find android/app/src/main/kotlin -name "MainActivity.kt" | head -n 1)
-          PKG_LINE=$(head -n 1 "$MAIN_KT")
-          cat << EOF > "$MAIN_KT"
-          $PKG_LINE
-
-          import android.provider.Settings
-          import io.flutter.embedding.android.FlutterActivity
-          import io.flutter.embedding.engine.FlutterEngine
-          import io.flutter.plugin.common.MethodChannel
-
-          class MainActivity: FlutterActivity() {
-              override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-                  super.configureFlutterEngine(flutterEngine)
-                  MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.tvallstream/device").setMethodCallHandler { call, result ->
-                      if (call.method == "getAndroidId") {
-                          val id = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: ""
-                          result.success(id)
-                      } else {
-                          result.notImplemented()
-                      }
-                  }
-              }
-          }
-          EOF
 
       - name: Install dependencies
         run: flutter pub get
