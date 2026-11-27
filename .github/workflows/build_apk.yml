@@ -36,18 +36,18 @@ jobs:
 
       - name: Write 3-Column Groups PlayerPage (Live, Movies & Series)
         run: |
-          python3 -c '
-          code = """import \x27dart:async\x27;
-          import \x27dart:convert\x27;
-          import \x27package:flutter/material.dart\x27;
-          import \x27package:http/http.dart\x27 as http;
-          import \x27package:video_player/video_player.dart\x27;
-          import \x27main.dart\x27;
+          python3 - << 'PYEOF'
+          code = """import 'dart:async';
+          import 'dart:convert';
+          import 'package:flutter/material.dart';
+          import 'package:http/http.dart' as http;
+          import 'package:video_player/video_player.dart';
+          import 'main.dart';
 
           class PlayerPage extends StatefulWidget {
             final Map<String, dynamic> account;
             final String initialAction;
-            const PlayerPage({super.key, required this.account, this.initialAction = \x27get_live_streams\x27});
+            const PlayerPage({super.key, required this.account, this.initialAction = 'get_live_streams'});
 
             @override
             State<PlayerPage> createState() => _PlayerPageState();
@@ -60,9 +60,9 @@ jobs:
 
             late String tipoAtual;
             List<dynamic> categorias = [];
-            String categoriaSelecionada = \x27ALL\x27;
+            String categoriaSelecionada = 'ALL';
             List<dynamic> itens = [];
-            String filtroBusca = \x27\x27;
+            String filtroBusca = '';
 
             bool carregandoLista = true;
             bool carregandoVideo = false;
@@ -70,28 +70,28 @@ jobs:
             bool showOsd = true;
 
             String? selectedId;
-            String tituloAtual = \x27\x27;
+            String tituloAtual = '';
             String? erroVideo;
             String? erroLista;
 
-            String get dnsUrl => (widget.account[\x27dns_url\x27] ?? \x27\x27).toString().replaceAll(RegExp(r\x27/$\x27), \x27\x27);
-            String get username => (widget.account[\x27username\x27] ?? \x27\x27).toString();
-            String get password => (widget.account[\x27password\x27] ?? \x27\x27).toString();
+            String get dnsUrl => (widget.account['dns_url'] ?? '').toString().replaceAll(RegExp(r'/$'), '');
+            String get username => (widget.account['username'] ?? '').toString();
+            String get password => (widget.account['password'] ?? '').toString();
 
-            Map<String, String> get _headers => const {\x27User-Agent\x27: \x27IPTV Smarters Player\x27, \x27Accept\x27: \x27application/json\x27};
+            Map<String, String> get _headers => const {'User-Agent': 'IPTV Smarters Player', 'Accept': 'application/json'};
 
             List<dynamic> get itensFiltrados {
               return itens.where((raw) {
                 final item = raw as Map<String, dynamic>;
-                if (categoriaSelecionada != \x27ALL\x27 && (item[\x27category_id\x27] ?? \x27\x27).toString() != categoriaSelecionada) return false;
-                if (filtroBusca.isNotEmpty && !(item[\x27name\x27] ?? \x27\x27).toString().toLowerCase().contains(filtroBusca.toLowerCase())) return false;
+                if (categoriaSelecionada != 'ALL' && (item['category_id'] ?? '').toString() != categoriaSelecionada) return false;
+                if (filtroBusca.isNotEmpty && !(item['name'] ?? '').toString().toLowerCase().contains(filtroBusca.toLowerCase())) return false;
                 return true;
               }).toList();
             }
 
             int _contarPorCategoria(String catId) {
-              if (catId == \x27ALL\x27) return itens.length;
-              return itens.where((raw) => ((raw as Map<String, dynamic>)[\x27category_id\x27] ?? \x27\x27).toString() == catId).length;
+              if (catId == 'ALL') return itens.length;
+              return itens.where((raw) => ((raw as Map<String, dynamic>)['category_id'] ?? '').toString() == catId).length;
             }
 
             @override
@@ -132,9 +132,9 @@ jobs:
             }
 
             String _categoryActionFor(String streamAction) {
-              if (streamAction == \x27get_vod_streams\x27) return \x27get_vod_categories\x27;
-              if (streamAction == \x27get_series\x27) return \x27get_series_categories\x27;
-              return \x27get_live_categories\x27;
+              if (streamAction == 'get_vod_streams') return 'get_vod_categories';
+              if (streamAction == 'get_series') return 'get_series_categories';
+              return 'get_live_categories';
             }
 
             Future<void> _carregarSecao(String action) async {
@@ -143,16 +143,16 @@ jobs:
                 carregandoLista = true;
                 erroLista = null;
                 categorias = [];
-                categoriaSelecionada = \x27ALL\x27;
+                categoriaSelecionada = 'ALL';
                 itens = [];
-                filtroBusca = \x27\x27;
+                filtroBusca = '';
                 _searchController.clear();
               });
 
               try {
                 final catAction = _categoryActionFor(action);
-                final catUrl = Uri.parse(\x27$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=$catAction\x27);
-                final streamUrl = Uri.parse(\x27$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=$action\x27);
+                final catUrl = Uri.parse('$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=$catAction');
+                final streamUrl = Uri.parse('$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=$action');
 
                 final results = await Future.wait([http.get(catUrl, headers: _headers), http.get(streamUrl, headers: _headers)]);
                 if (results.first.statusCode == 200) {
@@ -164,32 +164,32 @@ jobs:
                   if (decoded is List) {
                     setState(() => itens = decoded);
                   } else {
-                    setState(() => erroLista = \x27Resposta inesperada do servidor\x27);
+                    setState(() => erroLista = 'Resposta inesperada do servidor');
                   }
                 } else {
-                  setState(() => erroLista = \x27Erro HTTP ${results.last.statusCode} ao buscar lista\x27);
+                  setState(() => erroLista = 'Erro HTTP ${results.last.statusCode} ao buscar lista');
                 }
               } catch (e) {
-                setState(() => erroLista = \x27Erro de rede: $e\x27);
+                setState(() => erroLista = 'Erro de rede: $e');
               } finally {
                 if (mounted) setState(() => carregandoLista = false);
               }
             }
 
             Future<void> _abrirSerie(Map<String, dynamic> serie) async {
-              final seriesId = (serie[\x27series_id\x27] ?? \x27\x27).toString();
-              final nomeSerie = (serie[\x27name\x27] ?? \x27Série\x27).toString();
+              final seriesId = (serie['series_id'] ?? '').toString();
+              final nomeSerie = (serie['name'] ?? 'Série').toString();
               showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
 
               try {
-                final url = Uri.parse(\x27$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=get_series_info&series_id=$seriesId\x27);
+                final url = Uri.parse('$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=get_series_info&series_id=$seriesId');
                 final res = await http.get(url, headers: _headers);
                 if (!mounted) return;
                 Navigator.pop(context);
                 if (res.statusCode != 200) return;
 
                 final data = jsonDecode(res.body);
-                final episodesMap = (data is Map && data[\x27episodes\x27] is Map) ? data[\x27episodes\x27] as Map<String, dynamic> : <String, dynamic>{};
+                final episodesMap = (data is Map && data['episodes'] is Map) ? data['episodes'] as Map<String, dynamic> : <String, dynamic>{};
                 if (episodesMap.isEmpty) return;
 
                 final seasons = episodesMap.keys.toList();
@@ -209,7 +209,7 @@ jobs:
                             DropdownButton<String>(
                               value: selectedSeason,
                               dropdownColor: const Color(0xFF23273D),
-                              items: seasons.map((s) => DropdownMenuItem(value: s, child: Text(\x27Temporada $s\x27))).toList(),
+                              items: seasons.map((s) => DropdownMenuItem(value: s, child: Text('Temporada $s'))).toList(),
                               onChanged: (val) {
                                 if (val != null) setModalState(() => selectedSeason = val);
                               },
@@ -223,7 +223,10 @@ jobs:
                             itemCount: epList.length,
                             itemBuilder: (_, idx) {
                               final ep = epList[idx] as Map<String, dynamic>;
-                              final epNum = (ep[\x27episode_num\x27] ?? (idx + 1)).toString();
-                              final epTitle = (ep[\x27title\x27] ?? \x27Episódio $epNum\x27).toString();
-                              final epId = (ep[\x27id\x27] ?? \x27\x27).toString();
-                              final ext = (ep[\x27container_extension\x27] ?? \x27mp4\x27).toString();
+                              final epNum = (ep['episode_num'] ?? (idx + 1)).toString();
+                              final epTitle = (ep['title'] ?? 'Episódio $epNum').toString();
+                              final epId = (ep['id'] ?? '').toString();
+                              final ext = (ep['container_extension'] ?? 'mp4').toString();
+                              return ListTile(
+                                leading: CircleAvatar(backgroundColor: const Color(0xFF6352FF), child: Text(epNum, style: const TextStyle(color: Colors.white, fontSize: 12))),
+                                title: Text(epTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
