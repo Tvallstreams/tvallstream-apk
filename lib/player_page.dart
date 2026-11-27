@@ -308,3 +308,213 @@ class _PlayerPageState extends State<PlayerPage> {
     setState(() {
       selectedId = id;
       tituloAtual = nome;
+      carregandoVideo = true;
+      erroVideo = null;
+    });
+    final oldVideo = _videoController;
+    _videoController = null;
+    await oldVideo?.dispose();
+
+    try {
+      final vc = VideoPlayerController.networkUrl(Uri.parse(streamUrl), httpHeaders: const {'User-Agent': 'IPTV Smarters Player'});
+      await vc.initialize();
+      await vc.play();
+      if (!mounted) {
+        await vc.dispose();
+        return;
+      }
+      setState(() {
+        _videoController = vc;
+        carregandoVideo = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          carregandoVideo = false;
+          erroVideo = 'Erro ao abrir stream: $e';
+        });
+      }
+    }
+  }
+
+  Widget _buildTabButton(String label, String action) {
+    final active = tipoAtual == action;
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: SizedBox(
+          height: 36,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              padding: EdgeInsets.zero,
+              backgroundColor: active ? const Color(0xFF6352FF) : const Color(0xFF232742),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => _carregarSecao(action),
+            child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoArea() {
+    final vc = _videoController;
+    return GestureDetector(
+      onTap: () {
+        if (isFullScreen) {
+          _triggerOsd();
+        } else if (vc != null && vc.value.isInitialized) {
+          _entrarTelaCheia();
+        }
+      },
+      child: Container(
+        color: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: carregandoVideo
+                  ? const CircularProgressIndicator()
+                  : erroVideo != null
+                      ? Padding(padding: const EdgeInsets.all(16), child: Text(erroVideo!, style: const TextStyle(color: Colors.redAccent)))
+                      : (vc != null && vc.value.isInitialized)
+                          ? AspectRatio(aspectRatio: vc.value.aspectRatio > 0 ? vc.value.aspectRatio : 16 / 9, child: VideoPlayer(vc))
+                          : const Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.ondemand_video_rounded, size: 54, color: Colors.white24),
+                                SizedBox(height: 10),
+                                Text('Selecione um título ao lado para iniciar', style: TextStyle(color: Colors.white54)),
+                              ],
+                            ),
+            ),
+            if (vc != null && vc.value.isInitialized && (!isFullScreen || showOsd))
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  color: const Color(0xCC141726),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(vc.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
+                        onPressed: () {
+                          setState(() => vc.value.isPlaying ? vc.pause() : vc.play());
+                          if (isFullScreen) _triggerOsd();
+                        },
+                      ),
+                      Expanded(child: Text(tituloAtual, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                      IconButton(
+                        tooltip: isFullScreen ? 'Sair da tela cheia' : 'Tela cheia',
+                        icon: Icon(isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen, color: Colors.white, size: 28),
+                        onPressed: () => isFullScreen ? _sairTelaCheia() : _entrarTelaCheia(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lista = itensFiltrados;
+    return PopScope(
+      canPop: !isFullScreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && isFullScreen) _sairTelaCheia();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0B0D17),
+        body: isFullScreen
+            ? _buildVideoArea()
+            : Row(
+                children: [
+                  Container(
+                    width: 345,
+                    color: const Color(0xFF121524),
+                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(padding: EdgeInsets.zero, constraints: const BoxConstraints(), icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 22), onPressed: () => Navigator.pop(context)),
+                            const SizedBox(width: 8),
+                            const AppLogo(size: 26),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text('TvAllStream (${lista.length})', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _buildTabButton('Ao Vivo', 'get_live_streams'),
+                            _buildTabButton('Filmes', 'get_vod_streams'),
+                            _buildTabButton('Séries', 'get_series'),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        if (categorias.isNotEmpty)
+                          Container(
+                            height: 38,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(color: const Color(0xFF1A1E33), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white12)),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: categoriaSelecionada,
+                                dropdownColor: const Color(0xFF1A1E33),
+                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                                items: [
+                                  const DropdownMenuItem(value: 'ALL', child: Text('Todas as Categorias')),
+                                  ...categorias.map((c) {
+                                    final map = c as Map<String, dynamic>;
+                                    return DropdownMenuItem(value: (map['category_id'] ?? '').toString(), child: Text((map['category_name'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis));
+                                  }),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) setState(() => categoriaSelecionada = val);
+                                },
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 36,
+                          child: TextField(
+                            controller: _searchController,
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: 'Buscar canal, filme ou série...',
+                              hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                              prefixIcon: const Icon(Icons.search, size: 18, color: Colors.white54),
+                              suffixIcon: filtroBusca.isNotEmpty
+                                  ? IconButton(
+                                      padding: EdgeInsets.zero,
+                                      icon: const Icon(Icons.close, size: 16, color: Colors.white54),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() => filtroBusca = '');
+                                      },
+                                    )
+                                  : null,
+                              filled: true,
+                              fillColor: const Color(0xFF1A1E33),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                            ),
+                            onChanged: (val) => setState(() => filtroBusca = val),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Expanded(
+                          child: carregandoLista
+                              ? const Center(child: CircularProgressIndicator())
+                              : erroLista != null
+                                  ? Padding(padding: const EdgeInsets.all(12), child: Text(erroLista!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)))
