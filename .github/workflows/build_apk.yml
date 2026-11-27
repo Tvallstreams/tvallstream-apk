@@ -12,6 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore clean main.dart and point to Cloudflare DB proxy
+        run: |
+          git checkout 26d41bc -- lib/main.dart
+          sed -i "s|ihzzgtkavekrvgsxshhy.supabase.co|tvallstream-proxy.abiliorr.workers.dev/db|g" lib/main.dart
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
