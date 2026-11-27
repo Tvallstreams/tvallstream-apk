@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
@@ -8,8 +10,13 @@ import 'package:video_player/video_player.dart';
 const String kSupabaseUrl = 'https://' 'tvallstream-proxy.abiliorr.workers.dev/db';
 const String kSupabaseAnonKey = 'sb_publishable_Q5jTnbrCs-dRi4PzrCHohA_wHYqSsYz';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   runApp(const TvAllStreamApp());
 }
 
@@ -19,17 +26,63 @@ class TvAllStreamApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TVAllstream',
+      title: 'TvAllStream TV',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0E101A),
+        scaffoldBackgroundColor: const Color(0xFF0B0D17),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF5A48F5),
-          secondary: Color(0xFF5A48F5),
+          primary: Color(0xFF6352FF),
+          secondary: Color(0xFF00D2FF),
         ),
       ),
       home: const HomePage(),
+    );
+  }
+}
+
+class AppLogo extends StatelessWidget {
+  final double size;
+  const AppLogo({super.key, this.size = 68});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF7B61FF), Color(0xFF3B28CC)],
+        ),
+        borderRadius: BorderRadius.circular(size * 0.26),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x666352FF),
+            blurRadius: 22,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(Icons.live_tv_rounded, size: size * 0.56, color: Colors.white),
+          Positioned(
+            right: size * 0.14,
+            bottom: size * 0.14,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                color: Color(0xFF00D2FF),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.play_arrow_rounded, size: size * 0.22, color: const Color(0xFF0B0D17)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -44,6 +97,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String macAddress = 'Gerando MAC...';
   bool loading = false;
+  bool connectFocused = false;
+  bool manualFocused = false;
   String? errorMsg;
 
   @override
@@ -72,7 +127,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _connect() async {
+  Future<void> _connectWithMac() async {
     if (macAddress.isEmpty || macAddress.startsWith('Gerando')) return;
     setState(() {
       loading = true;
@@ -95,352 +150,148 @@ class _HomePageState extends State<HomePage> {
           if (!mounted) return;
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => PlayerPage(account: user)),
+            MaterialPageRoute(builder: (_) => DashboardPage(account: user, macAddress: macAddress)),
           );
         } else {
-          setState(() => errorMsg = 'MAC não registrado ou aguardando ativação.');
+          setState(() => errorMsg = 'MAC não ativado. Informe o MAC ao seu provedor ou adicione uma playlist.');
         }
       } else {
-        setState(() => errorMsg = 'Erro servidor (${res.statusCode})');
+        setState(() => errorMsg = 'Erro no servidor (${res.statusCode})');
       }
-    } catch (e) {
-      setState(() => errorMsg = 'Falha de conexão: $e');
+    } catch (_) {
+      setState(() => errorMsg = 'Sem conexão com a internet. Verifique a rede.');
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0E101A),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 460),
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: const Color(0xFF171A29),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white12),
-            ),
+  Future<void> _openManualLoginDialog() async {
+    final titleCtrl = TextEditingController(text: 'Minha Playlist');
+    final dnsCtrl = TextEditingController();
+    final userCtrl = TextEditingController();
+    final passCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151828),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.playlist_add_rounded, color: Color(0xFF6352FF)),
+            SizedBox(width: 10),
+            Text('Adicionar Playlist (Xtream API)', style: TextStyle(color: Colors.white, fontSize: 18)),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.live_tv_rounded, size: 54, color: Color(0xFF5A48F5)),
-                const SizedBox(height: 12),
-                const Text(
-                  'TVAllstream Player',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                TextField(
+                  controller: titleCtrl,
+                  decoration: const InputDecoration(labelText: 'Nome da Lista'),
                 ),
-                const SizedBox(height: 24),
-                const Text('SEU ENDEREÇO MAC:', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 6),
-                Text(
-                  macAddress,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                    color: Colors.white,
+                const SizedBox(height: 10),
+                TextField(
+                  controller: dnsCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'URL do Servidor (ex: http://servidor.com:8080)',
                   ),
                 ),
-                const SizedBox(height: 24),
-                if (errorMsg != null) ...[
-                  Text(
-                    errorMsg!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-                  ),
-                  const SizedBox(height: 14),
-                ],
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    autofocus: true,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5A48F5),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: loading ? null : _connect,
-                    child: loading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Text('CONECTAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: userCtrl,
+                  decoration: const InputDecoration(labelText: 'Usuário'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: passCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Senha'),
                 ),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class PlayerPage extends StatefulWidget {
-  final Map<String, dynamic> account;
-  const PlayerPage({super.key, required this.account});
-
-  @override
-  State<PlayerPage> createState() => _PlayerPageState();
-}
-
-class _PlayerPageState extends State<PlayerPage> {
-  VideoPlayerController? _videoController;
-
-  String tipoAtual = 'get_live_streams';
-  List<dynamic> itens = [];
-  bool carregandoLista = true;
-  bool carregandoVideo = false;
-  String? selectedId;
-  String tituloAtual = '';
-  String? erroVideo;
-  String? erroLista;
-
-  String get dnsUrl => (widget.account['dns_url'] ?? '').toString().replaceAll(RegExp(r'/$'), '');
-  String get username => (widget.account['username'] ?? '').toString();
-  String get password => (widget.account['password'] ?? '').toString();
-  String get accountTitle => (widget.account['title'] ?? 'Usuário').toString();
-
-  @override
-  void initState() {
-    super.initState();
-    _carregarLista('get_live_streams');
-  }
-
-  @override
-  void dispose() {
-    _videoController?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _carregarLista(String action) async {
-    setState(() {
-      tipoAtual = action;
-      carregandoLista = true;
-      erroLista = null;
-      itens = [];
-    });
-
-    try {
-      final apiUrl = Uri.parse(
-        '$dnsUrl/player_api.php?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}&action=$action',
-      );
-      final res = await http.get(
-        apiUrl,
-        headers: const {
-          'User-Agent': 'IPTV Smarters Player',
-          'Accept': 'application/json',
-        },
-      );
-      if (res.statusCode == 200) {
-        final decoded = jsonDecode(res.body);
-        if (decoded is List) {
-          setState(() => itens = decoded);
-        } else {
-          final preview = res.body.length > 80 ? res.body.substring(0, 80) : res.body;
-          setState(() => erroLista = 'Resposta inesperada: $preview');
-        }
-      } else {
-        setState(() => erroLista = 'Erro HTTP ${res.statusCode} ao buscar lista');
-      }
-    } catch (e) {
-      setState(() => erroLista = 'Erro de rede: $e');
-    } finally {
-      if (mounted) setState(() => carregandoLista = false);
-    }
-  }
-
-  Future<void> _tocarItem(Map<String, dynamic> item) async {
-    final id = (item['stream_id'] ?? item['series_id'] ?? '').toString();
-    final nome = (item['name'] ?? '').toString();
-    final ext = (item['container_extension'] ?? 'mp4').toString();
-
-    String streamUrl = '';
-    if (tipoAtual == 'get_live_streams') {
-      streamUrl = '$dnsUrl/live/$username/$password/$id.m3u8';
-    } else if (tipoAtual == 'get_vod_streams') {
-      streamUrl = '$dnsUrl/movie/$username/$password/$id.$ext';
-    } else {
-      streamUrl = '$dnsUrl/series/$username/$password/$id.$ext';
-    }
-
-    setState(() {
-      selectedId = id;
-      tituloAtual = nome;
-      carregandoVideo = true;
-      erroVideo = null;
-    });
-
-    final oldVideo = _videoController;
-    _videoController = null;
-    await oldVideo?.dispose();
-
-    try {
-      final vc = VideoPlayerController.networkUrl(
-        Uri.parse(streamUrl),
-        httpHeaders: const {'User-Agent': 'IPTV Smarters Player'},
-      );
-      await vc.initialize();
-      await vc.play();
-      if (!mounted) {
-        await vc.dispose();
-        return;
-      }
-      setState(() {
-        _videoController = vc;
-        carregandoVideo = false;
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          carregandoVideo = false;
-          erroVideo = 'Erro ao abrir stream: $e';
-        });
-      }
-    }
-  }
-
-  Widget _buildTabButton(String label, String action) {
-    final active = tipoAtual == action;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      child: SizedBox(
-        width: double.infinity,
-        height: 40,
-        child: ElevatedButton(
-          onPressed: () => _carregarLista(action),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: active ? const Color(0xFF5A48F5) : const Color(0xFF282266),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
           ),
-          child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final vc = _videoController;
-    return Scaffold(
-      backgroundColor: const Color(0xFF0E101A),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0E101A),
-        title: Text('$accountTitle (${itens.length})', style: const TextStyle(color: Colors.white)),
-      ),
-      body: Row(
-        children: [
-          SizedBox(
-            width: 310,
-            child: Column(
-              children: [
-                _buildTabButton('Aovivo', 'get_live_streams'),
-                _buildTabButton('Filmes', 'get_vod_streams'),
-                _buildTabButton('Séries', 'get_series'),
-                Expanded(
-                  child: carregandoLista
-                      ? const Center(child: CircularProgressIndicator())
-                      : erroLista != null
-                          ? Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Text(
-                                erroLista!,
-                                style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: itens.length,
-                              itemBuilder: (context, index) {
-                                final item = itens[index] as Map<String, dynamic>;
-                                final id = (item['stream_id'] ?? item['series_id'] ?? '').toString();
-                                final name = (item['name'] ?? '').toString();
-                                final isSelected = id == selectedId;
-
-                                return Container(
-                                  color: isSelected ? const Color(0xFF5A48F5) : Colors.transparent,
-                                  child: ListTile(
-                                    dense: true,
-                                    title: Text(
-                                      name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                                    ),
-                                    trailing: const Icon(Icons.chevron_right, color: Colors.white70),
-                                    onTap: () => _tocarItem(item),
-                                  ),
-                                );
-                              },
-                            ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6352FF)),
+            onPressed: () {
+              if (dnsCtrl.text.trim().isEmpty ||
+                  userCtrl.text.trim().isEmpty ||
+                  passCtrl.text.trim().isEmpty) {
+                return;
+              }
+              final customAccount = {
+                'title': titleCtrl.text.trim().isEmpty ? 'Minha Playlist' : titleCtrl.text.trim(),
+                'dns_url': dnsCtrl.text.trim(),
+                'username': userCtrl.text.trim(),
+                'password': passCtrl.text.trim(),
+              };
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DashboardPage(account: customAccount, macAddress: macAddress),
                 ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Container(
-              color: Colors.black,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: carregandoVideo
-                          ? const CircularProgressIndicator()
-                          : erroVideo != null
-                              ? Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Text(erroVideo!, style: const TextStyle(color: Colors.redAccent)),
-                                )
-                              : (vc != null && vc.value.isInitialized)
-                                  ? AspectRatio(
-                                      aspectRatio: vc.value.aspectRatio > 0 ? vc.value.aspectRatio : 16 / 9,
-                                      child: VideoPlayer(vc),
-                                    )
-                                  : const Text(
-                                      'Selecione um canal ou filme ao lado',
-                                      style: TextStyle(color: Colors.white70),
-                                    ),
-                    ),
-                  ),
-                  if (vc != null && vc.value.isInitialized)
-                    Container(
-                      color: const Color(0xFF171A29),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(vc.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
-                            onPressed: () {
-                              setState(() {
-                                vc.value.isPlaying ? vc.pause() : vc.play();
-                              });
-                            },
-                          ),
-                          Expanded(
-                            child: Text(
-                              tituloAtual,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
+              );
+            },
+            child: const Text('Entrar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
-}
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -0.25),
+            radius: 1.3,
+            colors: [
+              Color(0xFF201C52),
+              Color(0xFF0E101C),
+              Color(0xFF07080F),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 26),
+                    decoration: BoxDecoration(
+                      color: const Color(0xEB141726),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0x4D6352FF), width: 1.5),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x55000000),
+                          blurRadius: 36,
+                          offset: Offset(0, 16),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const AppLogo(size: 70),
+                        const SizedBox(height: 12),
+                        RichText(
+                          text: const TextSpan(
+                            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                            children: [
